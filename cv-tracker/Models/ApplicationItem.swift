@@ -35,6 +35,8 @@ final class ApplicationItem {
     
     @Relationship(deleteRule: .cascade) var timeline: [TimelineItem]? = []
     
+    
+    
     init(companyName: String = "", position: String = "", date: Date = Date()) {
         self.id = UUID()
         self.companyName = companyName
