@@ -2,11 +2,13 @@ import SwiftUI
 import SwiftData
 import MapKit
 import Combine
+import EventKit
 
 // MARK: - Timeline Section
 struct TimelineSection: View {
     var application: ApplicationItem
     @State private var showingAddEvent = false
+    @Environment(\.modelContext) private var modelContext
     
     var body: some View {
         Section {
@@ -22,6 +24,7 @@ struct TimelineSection: View {
             HStack {
                 Label("Timeline", systemImage: "timer")
                 Spacer()
+                
                 Button {
                     showingAddEvent = true
                 } label: {
@@ -29,6 +32,7 @@ struct TimelineSection: View {
                         .imageScale(.large)
                 }
                 .buttonStyle(.plain)
+                .help("Add Event")
             }
         }
         .sheet(isPresented: $showingAddEvent) {
@@ -44,6 +48,7 @@ struct TimelineRow: View {
     @State private var editingField: EditingField? = nil
     @Environment(\.modelContext) private var modelContext
     @FocusState private var isFocused: Bool
+    @StateObject private var calendarManager = CalendarManager()
     
     @State private var editTitle = ""
     @State private var editDate = Date()
@@ -84,13 +89,11 @@ struct TimelineRow: View {
                             .font(.body.bold())
                             .focused($isFocused)
                             .onSubmit {
-                                event.title = editTitle
-                                editingField = nil
+                                saveTitle()
                             }
                         
                         Button("Save") {
-                            event.title = editTitle
-                            editingField = nil
+                            saveTitle()
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
@@ -107,14 +110,25 @@ struct TimelineRow: View {
                         isFocused = true
                     }
                 } else {
-                    Text(event.title)
-                        .font(.title3.bold())
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture(count: 2) {
-                            editTitle = event.title
-                            editingField = .title
+                    HStack(spacing: 6) {
+                        Text(event.title)
+                            .font(.title3.bold())
+                        
+                        if event.calendarEventID != nil {
+                            Image(systemName: "calendar.badge.checkmark")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                                .help("Synced with Calendar")
                         }
+                        
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        editTitle = event.title
+                        editingField = .title
+                    }
                 }
                 
                 // Date
@@ -135,7 +149,7 @@ struct TimelineRow: View {
                             dateString: $dateString,
                             timeString: $timeString,
                             onSave: {
-                                event.date = editDate
+                                saveDate()
                                 showingDatePicker = false
                             },
                             onCancel: {
@@ -149,14 +163,12 @@ struct TimelineRow: View {
                 if editingField == .location {
                     VStack(alignment: .leading, spacing: 4) {
                         LocationSearchField(location: $editLocation, onSave: {
-                            event.location = editLocation
-                            editingField = nil
+                            saveLocation()
                         })
                         
                         HStack {
                             Button("Save") {
-                                event.location = editLocation
-                                editingField = nil
+                                saveLocation()
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
@@ -189,14 +201,12 @@ struct TimelineRow: View {
                             .textFieldStyle(.roundedBorder)
                             .focused($isFocused)
                             .onSubmit {
-                                event.meetLink = editMeetLink
-                                editingField = nil
+                                saveMeetLink()
                             }
                         
                         HStack {
                             Button("Save") {
-                                event.meetLink = editMeetLink
-                                editingField = nil
+                                saveMeetLink()
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
@@ -247,20 +257,26 @@ struct TimelineRow: View {
                 // Preparation Notes
                 if editingField == .notes {
                     VStack(alignment: .leading, spacing: 4) {
-                        TextEditor(text: $editPreparationNotes)
-                            .frame(minHeight: 80)
-                            .font(.subheadline)
-                            .border(Color.gray.opacity(0.2), width: 1)
-                            .focused($isFocused)
+                        ZStack(alignment: .topLeading) {
+                            TextEditor(text: $editPreparationNotes)
+                                .frame(minHeight: 80)
+                                .font(.subheadline)
+                                .focused($isFocused)
+                                .padding(4)
+                        }
+                        .background(Color(nsColor: .textBackgroundColor))
+                        .cornerRadius(4)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
                         
                         HStack {
                             Button("Save") {
-                                event.preparationNotes = editPreparationNotes
-                                editingField = nil
+                                saveNotes()
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
-                            .keyboardShortcut(.return, modifiers: .command)
                             
                             Button("Cancel") {
                                 editingField = nil
@@ -272,6 +288,13 @@ struct TimelineRow: View {
                     }
                     .onAppear {
                         isFocused = true
+                    }
+                    .onKeyPress(.return, phases: .down) { press in
+                        if press.modifiers.contains(.command) {
+                            saveNotes()
+                            return .handled
+                        }
+                        return .ignored
                     }
                 } else {
                     if event.preparationNotes.isEmpty {
@@ -285,15 +308,20 @@ struct TimelineRow: View {
                                 editingField = .notes
                             }
                     } else {
-                        ClickableTextView(text: event.preparationNotes)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                            .onTapGesture(count: 2) {
-                                editPreparationNotes = event.preparationNotes
-                                editingField = .notes
-                            }
+                        VStack(alignment: .leading, spacing: 0) {
+                            ClickableTextView(text: event.preparationNotes)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .padding(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+                        .cornerRadius(6)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) {
+                            editPreparationNotes = event.preparationNotes
+                            editingField = .notes
+                        }
                     }
                 }
             }
@@ -301,9 +329,77 @@ struct TimelineRow: View {
         .padding(.vertical, 12)
         .contextMenu {
             Button("Delete", role: .destructive) {
-                modelContext.delete(event)
+                deleteEvent()
             }
         }
+        .task {
+            // Request calendar access once when row appears (only if event is synced)
+            if event.calendarEventID != nil {
+                _ = await calendarManager.requestAccess()
+            }
+        }
+    }
+    
+    // MARK: - Calendar Sync Methods
+    private func saveTitle() {
+        event.title = editTitle
+        syncToCalendar()
+        editingField = nil
+    }
+    
+    private func saveDate() {
+        event.date = editDate
+        syncToCalendar()
+    }
+    
+    private func saveLocation() {
+        event.location = editLocation
+        syncToCalendar()
+        editingField = nil
+    }
+    
+    private func saveMeetLink() {
+        event.meetLink = editMeetLink
+        syncToCalendar()
+        editingField = nil
+    }
+    
+    private func saveNotes() {
+        event.preparationNotes = editPreparationNotes
+        syncToCalendar()
+        editingField = nil
+    }
+    
+    private func syncToCalendar() {
+        guard let calendarEventID = event.calendarEventID else { return }
+        
+        Task {
+            let success = calendarManager.updateEvent(
+                identifier: calendarEventID,
+                title: event.title,
+                startDate: event.date,
+                duration: event.duration,
+                location: event.location,
+                notes: event.preparationNotes,
+                url: event.meetLink.isEmpty ? nil : event.meetLink
+            )
+            
+            if !success {
+                print("Failed to update calendar event")
+            }
+        }
+    }
+    
+    private func deleteEvent() {
+        // Delete from calendar if it exists
+        if let calendarEventID = event.calendarEventID {
+            Task {
+                _ = calendarManager.deleteEvent(identifier: calendarEventID)
+            }
+        }
+        
+        // Delete from SwiftData
+        modelContext.delete(event)
     }
     
     // Helper functions for date/time formatting
@@ -568,58 +664,189 @@ struct AddEventSheet: View {
     
     @State private var title = ""
     @State private var date = Date()
+    @State private var duration: TimeInterval = 3600 // 1 hour default
     @State private var location = ""
     @State private var meetLink = ""
     @State private var preparationNotes = ""
+    @State private var showingCalendarPicker = false
+    @StateObject private var calendarManager = CalendarManager()
+    @State private var calendarAccessRequested = false
+    @FocusState private var focusedField: Field?
+    @State private var showToast = false
+    
+    enum Field {
+        case title
+    }
     
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Event Details") {
-                    TextField("Title", text: $title)
-                    DatePicker("Date & Time", selection: $date)
+        ZStack(alignment: .topTrailing) {
+            NavigationStack {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // Import section
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Or import existing event")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 20)
+                                .padding(.top, 8)
+                            
+                            Button {
+                                showingCalendarPicker = true
+                            } label: {
+                                Label("Import from Calendar", systemImage: "calendar.badge.plus")
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.large)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 16)
+                        }
+                        
+                        Divider()
+                        
+                        // Form content
+                        Form {
+                            Section("Event Details") {
+                                TextField("Title", text: $title)
+                                    .focused($focusedField, equals: .title)
+                                DatePicker("Start Date & Time", selection: $date)
+                                
+                                HStack {
+                                    Text("Duration")
+                                    Spacer()
+                                    Picker("Duration", selection: $duration) {
+                                        Text("15 min").tag(TimeInterval(15 * 60))
+                                        Text("30 min").tag(TimeInterval(30 * 60))
+                                        Text("45 min").tag(TimeInterval(45 * 60))
+                                        Text("1 hour").tag(TimeInterval(60 * 60))
+                                        Text("1.5 hours").tag(TimeInterval(90 * 60))
+                                        Text("2 hours").tag(TimeInterval(120 * 60))
+                                        Text("3 hours").tag(TimeInterval(180 * 60))
+                                    }
+                                    .labelsHidden()
+                                }
+                            }
+                            
+                            Section("Logistics") {
+                                LocationSearchField(location: $location, autoFocus: false)
+                                TextField("Meeting Link", text: $meetLink)
+                            }
+                            
+                            Section("Notes") {
+                                TextEditor(text: $preparationNotes)
+                                    .frame(height: 80)
+                            }
+                        }
+                        .formStyle(.grouped)
+                    }
                 }
-                
-                Section("Logistics") {
-                    LocationSearchField(location: $location)
-                    TextField("Meeting Link", text: $meetLink)
+                .navigationTitle("Add Event")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                    }
+                    
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            Task {
+                                await saveEvent()
+                            }
+                        }
+                        .disabled(title.isEmpty)
+                    }
                 }
-                
-                Section("Notes") {
-                    TextEditor(text: $preparationNotes)
-                        .frame(minHeight: 100)
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        focusedField = .title
+                    }
+                }
+                .task {
+                    if !calendarAccessRequested {
+                        _ = await calendarManager.requestAccess()
+                        calendarAccessRequested = true
+                    }
                 }
             }
-            .formStyle(.grouped)
-            .navigationTitle("Add Event")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
+            .frame(minHeight: 400, maxHeight: 650)
+            .sheet(isPresented: $showingCalendarPicker) {
+                CalendarEventPickerSheet(application: application) { event in
+                    importEvent(event)
+                    dismiss()
                 }
-                
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        let newEvent = TimelineItem(
-                            title: title,
-                            date: date,
-                            location: location,
-                            meetLink: meetLink,
-                            preparationNotes: preparationNotes
-                        )
-                        newEvent.application = application
-                        modelContext.insert(newEvent)
-                        dismiss()
-                    }
-                    .disabled(title.isEmpty)
-                }
+            }
+            
+            // Toast notification
+            if showToast {
+                ToastView(message: "Event added to Calendar!", icon: "checkmark.circle.fill")
+                    .padding(16)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(1)
             }
         }
-        .frame(width: 500, height: 600)
+    }
+    
+    private func saveEvent() async {
+        // Create calendar event first
+        let calendarEventID = calendarManager.createEvent(
+            title: title,
+            startDate: date,
+            duration: duration,
+            location: location,
+            notes: preparationNotes,
+            url: meetLink.isEmpty ? nil : meetLink
+        )
+        
+        // Create timeline item
+        let newEvent = TimelineItem(
+            title: title,
+            date: date,
+            duration: duration,
+            location: location,
+            meetLink: meetLink,
+            preparationNotes: preparationNotes,
+            calendarEventID: calendarEventID
+        )
+        newEvent.application = application
+        modelContext.insert(newEvent)
+        
+        // Show toast if calendar event was created
+        if calendarEventID != nil {
+            withAnimation(.spring(response: 0.3)) {
+                showToast = true
+            }
+            
+            try? await Task.sleep(for: .seconds(2))
+            
+            withAnimation(.spring(response: 0.3)) {
+                showToast = false
+            }
+            
+            try? await Task.sleep(for: .seconds(0.3))
+        }
+        
+        dismiss()
+    }
+    
+    private func importEvent(_ event: EKEvent) {
+        let eventDuration = event.endDate.timeIntervalSince(event.startDate)
+        let newEvent = TimelineItem(
+            title: event.title ?? "Untitled Event",
+            date: event.startDate,
+            duration: eventDuration,
+            location: event.location ?? "",
+            meetLink: event.url?.absoluteString ?? "",
+            preparationNotes: event.notes ?? "",
+            calendarEventID: event.eventIdentifier
+        )
+        newEvent.application = application
+        modelContext.insert(newEvent)
     }
 }
 
+// MARK: - Toast View
 // MARK: - Clickable Text View
 struct ClickableTextView: View {
     let text: String
@@ -660,6 +887,7 @@ struct ClickableTextView: View {
 struct LocationSearchField: View {
     @Binding var location: String
     var onSave: (() -> Void)? = nil
+    var autoFocus: Bool = true
     @StateObject private var searchCompleter = LocationSearchCompleter()
     @State private var selectedIndex: Int = -1
     @FocusState private var isFocused: Bool
@@ -695,8 +923,10 @@ struct LocationSearchField: View {
                     return .ignored
                 }
                 .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        isFocused = true
+                    if autoFocus {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            isFocused = true
+                        }
                     }
                 }
             

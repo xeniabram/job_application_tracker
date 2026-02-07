@@ -14,6 +14,7 @@ struct ApplicationDetailView: View {
     @State private var editConsentsText = ""
     @FocusState private var isFocused: Bool
     @FocusState private var isConsentsFocused: Bool
+    @State private var showConsentToast = false
     
     enum EditingField {
         case companyName, position
@@ -140,9 +141,17 @@ struct ApplicationDetailView: View {
         }
         .formStyle(.grouped)
         .navigationTitle(item.companyName.isEmpty ? "Details" : item.companyName)
+        .toast(
+            isPresented: $showConsentToast,
+            message: "Reminder scheduled successfully",
+            icon: "bell.badge.fill",
+            iconColor: .green
+        )
         // This works even if the sheet is in another file!
         .sheet(isPresented: $showingConsentSheet) {
-            ConsentReminderSheet(item: item)
+            ConsentReminderSheet(item: item, onSuccess: {
+                showConsentToast = true
+            })
         }
         .alert("Delete Application", isPresented: $showingDeleteAlert) {
             Button("Delete", role: .destructive) { modelContext.delete(item) }

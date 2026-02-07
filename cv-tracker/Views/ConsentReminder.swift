@@ -10,12 +10,14 @@ import SwiftData
 struct ConsentReminderSheet: View {
     @Environment(\.dismiss) var dismiss
     @Bindable var item: ApplicationItem
-    @State private var showSuccess = false
+    var onSuccess: (() -> Void)?
+    
     @State private var selectedWeeks: Int
     @State private var actionDetails: String = ""
 
-    init(item: ApplicationItem) {
+    init(item: ApplicationItem, onSuccess: (() -> Void)? = nil) {
         self.item = item
+        self.onSuccess = onSuccess
         _selectedWeeks = State(initialValue: item.consentInterval > 0 ? item.consentInterval : 4)
     }
 
@@ -57,14 +59,6 @@ struct ConsentReminderSheet: View {
             }
             .formStyle(.grouped)
 
-            if showSuccess {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    Text("Reminder Scheduled!").foregroundStyle(.green)
-                }
-                .transition(.scale.combined(with: .opacity))
-            }
-
             HStack {
                 Button("Cancel", role: .cancel) { dismiss() }
                 Spacer()
@@ -78,15 +72,14 @@ struct ConsentReminderSheet: View {
                     
                     Task {
                         await ReminderManager.shared.scheduleReminder(for: item, customTitle: finalTitle)
-                        withAnimation { showSuccess = true }
-                        try? await Task.sleep(for: .seconds(0.8))
                         dismiss()
+                        onSuccess?()
                     }
                 }
                 .buttonStyle(.borderedProminent)
             }
         }
         .padding()
-        .frame(width: 450, height: 500)
+        .frame(width: 450, height: 450)
     }
 }
