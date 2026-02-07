@@ -8,13 +8,109 @@ struct ApplicationDetailView: View {
     @State private var showingDeleteAlert = false
     @State private var isEditingNotes = false
     @State private var showingConsentSheet = false
+    @State private var editingField: EditingField? = nil
+    @State private var editCompanyName = ""
+    @State private var editPosition = ""
+    @State private var editConsentsText = ""
+    @FocusState private var isFocused: Bool
+    @FocusState private var isConsentsFocused: Bool
+    
+    enum EditingField {
+        case companyName, position
+    }
 
     var body: some View {
         Form {
             // 1. Core Info
             Section("General Info") {
-                TextField("Company", text: $item.companyName)
-                TextField("Position", text: $item.position)
+                // Company Name
+                if editingField == .companyName {
+                    HStack {
+                        TextField("Company", text: $editCompanyName)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($isFocused)
+                            .onSubmit {
+                                item.companyName = editCompanyName
+                                editingField = nil
+                            }
+                        
+                        Button("Save") {
+                            item.companyName = editCompanyName
+                            editingField = nil
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .keyboardShortcut(.return, modifiers: [])
+                        
+                        Button("Cancel") {
+                            editingField = nil
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .keyboardShortcut(.cancelAction)
+                    }
+                    .onAppear {
+                        isFocused = true
+                    }
+                } else {
+                    HStack {
+                        Text("Company")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(item.companyName.isEmpty ? "Add company name" : item.companyName)
+                            .foregroundStyle(item.companyName.isEmpty ? .tertiary : .primary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        editCompanyName = item.companyName
+                        editingField = .companyName
+                    }
+                }
+                
+                // Position
+                if editingField == .position {
+                    HStack {
+                        TextField("Position", text: $editPosition)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($isFocused)
+                            .onSubmit {
+                                item.position = editPosition
+                                editingField = nil
+                            }
+                        
+                        Button("Save") {
+                            item.position = editPosition
+                            editingField = nil
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .keyboardShortcut(.return, modifiers: [])
+                        
+                        Button("Cancel") {
+                            editingField = nil
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .keyboardShortcut(.cancelAction)
+                    }
+                    .onAppear {
+                        isFocused = true
+                    }
+                } else {
+                    HStack {
+                        Text("Position")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(item.position.isEmpty ? "Add position" : item.position)
+                            .foregroundStyle(item.position.isEmpty ? .tertiary : .primary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        editPosition = item.position
+                        editingField = .position
+                    }
+                }
+                
                 DatePicker("Date Applied", selection: $item.dateApplied, displayedComponents: .date)
                 
                 Picker("Status", selection: $item.status) {
@@ -79,30 +175,86 @@ extension ApplicationDetailView {
     }
     
     private var consentHeader: some View {
-        HStack {
-            Text("Consents")
-            Spacer()
-            Button(isEditingNotes ? "Done" : "Edit") { isEditingNotes.toggle() }
-                .buttonStyle(.link)
-        }
+        Text("Consents")
     }
     
     @ViewBuilder
     private var consentContent: some View {
         if isEditingNotes {
-            LinkEnabledEditor(text: $item.consentsText)
-                .frame(minHeight: 200)
-                .padding(4)
+            VStack(alignment: .leading, spacing: 4) {
+                ZStack(alignment: .topLeading) {
+                    TextEditor(text: $editConsentsText)
+                        .frame(minHeight: 200)
+                        .font(.body)
+                        .focused($isConsentsFocused)
+                        .padding(4)
+                }
                 .background(Color(NSColor.textBackgroundColor))
                 .cornerRadius(6)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
+                
+                HStack {
+                    Button("Save") {
+                        item.consentsText = editConsentsText
+                        isEditingNotes = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    
+                    Button("Cancel") {
+                        isEditingNotes = false
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .keyboardShortcut(.cancelAction)
+                }
+            }
+            .onAppear {
+                isConsentsFocused = true
+            }
+            .onKeyPress(.return, phases: .down) { press in
+                if press.modifiers.contains(.command) {
+                    item.consentsText = editConsentsText
+                    isEditingNotes = false
+                    return .handled
+                }
+                return .ignored
+            }
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                Text(.init(item.consentsText.isEmpty ? "*No notes provided*" : item.consentsText))
-                    .frame(minHeight: 180, alignment: .topLeading)
-                    .padding(8)
+                if item.consentsText.isEmpty {
+                    Text("*No notes provided*")
+                        .font(.body)
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
+                        .padding(8)
+                        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                        .cornerRadius(6)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) {
+                            editConsentsText = item.consentsText
+                            isEditingNotes = true
+                        }
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ClickableTextView(text: item.consentsText)
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
                     .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
                     .cornerRadius(6)
-                    .onTapGesture(count: 2) { isEditingNotes = true }
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        editConsentsText = item.consentsText
+                        isEditingNotes = true
+                    }
+                }
 
                 if item.consentActionRequired {
                     HStack {
