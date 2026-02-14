@@ -6,8 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		5E3643442F4098C00031D550 /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = 5E3643432F4098BF0031D550 /* .gitignore */; };
+		5E3643462F4098C50031D550 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 5E3643452F4098C50031D550 /* README.md */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
-		5E109E172F3674180083D2E9 /* cv-tracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "cv-tracker.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5E109E172F3674180083D2E9 /* cv-tracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = "cv-tracker.app"; path = "/Users/ksenia/Desktop/cv-tracker_source/build/Debug/cv-tracker.app"; sourceTree = "<absolute>"; };
+		5E3643432F4098BF0031D550 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
+		5E3643452F4098C50031D550 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -33,16 +40,9 @@
 			isa = PBXGroup;
 			children = (
 				5E109E192F3674180083D2E9 /* cv-tracker */,
-				5E109E182F3674180083D2E9 /* Products */,
+				5E3643432F4098BF0031D550 /* .gitignore */,
+				5E3643452F4098C50031D550 /* README.md */,
 			);
-			sourceTree = "<group>";
-		};
-		5E109E182F3674180083D2E9 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				5E109E172F3674180083D2E9 /* cv-tracker.app */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -95,7 +95,7 @@
 			mainGroup = 5E109E0E2F3674180083D2E9;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 5E109E182F3674180083D2E9 /* Products */;
+			productRefGroup = 5E109E0E2F3674180083D2E9;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -109,6 +109,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5E3643442F4098C00031D550 /* .gitignore in Resources */,
+				5E3643462F4098C50031D550 /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
