@@ -1,9 +1,4 @@
-//
-//  ConsentReminder.swift
-//  cv-tracker
-//
-//  Created by Ksenia Pravdina on 07/02/2026.
-//
+
 import SwiftUI
 import SwiftData
 

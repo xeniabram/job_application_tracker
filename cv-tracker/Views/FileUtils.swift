@@ -1,10 +1,3 @@
-//
-//  FileUtils.swift
-//  cv-tracker
-//
-//  Created by Ksenia Pravdina on 06/02/2026.
-//
-
 import Foundation
 import AppKit // Required for NSOpenPanel and NSWorkspace
 

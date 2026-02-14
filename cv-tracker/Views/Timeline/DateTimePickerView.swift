@@ -11,7 +11,6 @@ import MapKit
 import Combine
 import EventKit
 
-// MARK: - Date Time Picker View
 struct DateTimePickerView: View {
     @Binding var date: Date
     @Binding var dateString: String
